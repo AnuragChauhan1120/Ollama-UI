@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171916">
+  <title>Ollama</title>
+  <style>
+    :root { color-scheme: dark; --bg:#171916; --panel:#1f211e; --line:#343730; --text:#e8e9e4; --muted:#92968d; --accent:#c8ed78; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    button,select,textarea { font:inherit; }
+    button { color:inherit; cursor:pointer; }
+    .layout { min-height:100dvh; display:grid; grid-template-columns:230px minmax(0,1fr); }
+    aside { border-right:1px solid var(--line); padding:22px 16px; display:flex; flex-direction:column; gap:22px; }
+    .brand { display:flex; align-items:center; gap:10px; font-size:17px; font-weight:650; }
+    .mark { width:25px; height:25px; display:grid; place-items:center; border-radius:7px; background:var(--accent); color:#1a1d15; font-weight:800; }
+    .new-chat { display:flex; align-items:center; gap:9px; width:100%; padding:9px 11px; background:transparent; border:1px solid var(--line); border-radius:6px; text-align:left; }
+    .new-chat:hover, .icon-btn:hover { background:#292c26; }
+    .model-label { display:block; margin-bottom:7px; font-size:12px; color:var(--muted); }
+    select { width:100%; padding:9px 30px 9px 10px; border:1px solid var(--line); border-radius:6px; color:var(--text); background:var(--panel); }
+    .connection { margin-top:auto; color:var(--muted); font-size:12px; display:flex; gap:8px; align-items:center; }
+    .dot { width:7px; height:7px; background:#71766c; border-radius:50%; }
+    .dot.ready { background:var(--accent); }
+    main { min-width:0; height:100dvh; display:flex; flex-direction:column; }
+    .topbar { height:58px; padding:0 28px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; color:var(--muted); font-size:13px; }
+    #chat { flex:1; overflow:auto; padding:30px 22px 18px; }
+    .conversation { width:min(760px,100%); margin:0 auto; }
+    .welcome { min-height:100%; display:grid; place-content:center; justify-items:center; text-align:center; padding:30px 10px; }
+    .welcome h1 { margin:0 0 7px; font-size:25px; font-weight:550; letter-spacing:0; }
+    .welcome p { margin:0; color:var(--muted); }
+    .message { margin:0 0 24px; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .turn { margin-bottom:24px; }
+    .turn .message { margin-bottom:12px; }
+    .turn .message.assistant { margin-bottom:0; }
+    .message.pending { color:var(--muted); }
+    .message.user { width:fit-content; max-width:86%; margin-left:auto; padding:10px 14px; background:#292c26; border:1px solid #343730; border-radius:12px 12px 3px 12px; }
+    .message.assistant { padding:3px 1px; }
+    .message.error { color:#f0a09a; }
+    .composer-wrap { padding:12px 22px 20px; }
+    .composer { width:min(760px,100%); margin:auto; border:1px solid #41443c; border-radius:9px; background:var(--panel); box-shadow:0 8px 28px #0002; }
+    textarea { display:block; width:100%; min-height:54px; max-height:180px; padding:15px 15px 6px; resize:none; border:0; outline:0; color:var(--text); background:transparent; }
+    textarea::placeholder { color:#858980; }
+    .composer-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:5px 8px 8px 13px; color:var(--muted); font-size:12px; }
+    .action-group { display:flex; align-items:center; gap:6px; }
+    .send { width:34px; height:34px; display:grid; place-items:center; border:0; border-radius:6px; background:var(--accent); color:#202417; }
+    .stop { width:34px; height:34px; display:none; place-items:center; border:1px solid var(--line); border-radius:6px; background:transparent; }
+    .stop.visible { display:grid; }
+    .send:disabled { opacity:.45; cursor:default; }
+    .send svg { width:17px; height:17px; }
+    @media(max-width:650px) { .layout { grid-template-columns:1fr; } aside { padding:11px 14px; border-right:0; border-bottom:1px solid var(--line); display:grid; grid-template-columns:auto minmax(130px,1fr); align-items:center; gap:10px 14px; } .brand { grid-column:1; } .new-chat { grid-column:1; grid-row:2; } .model-picker { grid-column:2; grid-row:1 / span 2; } .model-label { margin-bottom:5px; } .connection { display:none; } main { height:calc(100dvh - 105px); } .topbar { height:44px; padding:0 16px; } #chat { padding:22px 16px 10px; } .composer-wrap { padding:10px 12px 13px; } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <div class="brand"><span class="mark">O</span> Ollama</div>
+      <button class="new-chat" id="new-chat" type="button"><span aria-hidden="true">＋</span> New chat</button>
+      <div class="model-picker"><label class="model-label" for="model">Model</label><select id="model" aria-label="Model"><option value="">Loading models…</option></select></div>
+      <div class="connection"><span class="dot" id="dot"></span><span id="status">Connecting to Ollama…</span></div>
+    </aside>
+    <main>
+      <header class="topbar"><span id="model-name">Local chat</span><span>Private · runs locally</span></header>
+      <section id="chat" aria-live="polite"><div class="conversation" id="conversation"><div class="welcome" id="welcome"><div><h1>What can I help with?</h1><p>Choose a model and start a conversation.</p></div></div></div></section>
+      <div class="composer-wrap"><form class="composer" id="form"><textarea id="message" rows="1" placeholder="Message your model…" aria-label="Message"></textarea><div class="composer-actions"><span id="queue-status">Enter to send · Shift+Enter for a new line</span><div class="action-group"><button class="stop" id="stop" type="button" aria-label="Stop current reply" title="Stop current reply"><span aria-hidden="true">■</span></button><button class="send" id="send" type="submit" aria-label="Send message" title="Send message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div></form></div>
+    </main>
+  </div>
+  <script>
+    const modelSelect = document.querySelector('#model');
+    const conversation = document.querySelector('#conversation');
+    const chat = document.querySelector('#chat');
+    const input = document.querySelector('#message');
+    const sendButton = document.querySelector('#send');
+    const stopButton = document.querySelector('#stop');
+    const queueStatus = document.querySelector('#queue-status');
+    const messages = [];
+    const queue = [];
+    let controller = null;
+    let processing = false;
+    let conversationId = 0;
+
+    async function loadModels() {
+      const status = document.querySelector('#status');
+      try {
+        const response = await fetch('/models');
+        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+        const data = await response.json();
+        modelSelect.replaceChildren();
+        for (const model of data.models || []) {
+          const option = document.createElement('option');
+          option.value = model.name;
+          option.textContent = model.name;
+          modelSelect.append(option);
+        }
+        if (!modelSelect.options.length) throw new Error('No models installed');
+        status.textContent = `${modelSelect.options.length} model${modelSelect.options.length === 1 ? '' : 's'} ready`;
+        document.querySelector('#dot').classList.add('ready');
+        updateModelName();
+      } catch (error) {
+        modelSelect.replaceChildren(new Option('Ollama unavailable', ''));
+        status.textContent = error.message === 'No models installed' ? error.message : 'Ollama not running';
+      }
+    }
+
+    function updateModelName() {
+      document.querySelector('#model-name').textContent = modelSelect.value || 'Local chat';
+    }
+
+    function addTurn(content) {
+      document.querySelector('#welcome')?.remove();
+      const turn = document.createElement('div');
+      turn.className = 'turn';
+      const user = document.createElement('div');
+      user.className = 'message user';
+      user.textContent = content;
+      const reply = document.createElement('div');
+      reply.className = 'message assistant pending';
+      reply.textContent = 'Waiting in queue…';
+      turn.append(user, reply);
+      conversation.append(turn);
+      chat.scrollTop = chat.scrollHeight;
+      return reply;
+    }
+
+    function updateQueueStatus() {
+      const count = queue.length;
+      queueStatus.textContent = count ? `${count} message${count === 1 ? '' : 's'} queued` : processing ? 'Generating reply…' : 'Enter to send · Shift+Enter for a new line';
+      stopButton.classList.toggle('visible', Boolean(controller));
+    }
+
+    async function submit(event) {
+      event?.preventDefault();
+      const content = input.value.trim();
+      const model = modelSelect.value;
+      if (!content || !model) return;
+      input.value = '';
+      resizeInput();
+      queue.push({ content, model, reply: addTurn(content) });
+      updateQueueStatus();
+      if (!processing) processQueue(conversationId);
+    }
+
+    async function processQueue(id) {
+      if (processing) return;
+      processing = true;
+      updateQueueStatus();
+      try {
+        while (queue.length && id === conversationId) {
+          const job = queue.shift();
+          job.reply.classList.remove('pending');
+          job.reply.textContent = 'Waiting for Ollama…';
+          messages.push({ role: 'user', content: job.content });
+          controller = new AbortController();
+          updateQueueStatus();
+          let answer = '';
+          try {
+            const response = await fetch('/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model: job.model, messages }),
+              signal: controller.signal
+            });
+            if (!response.ok) {
+              const detail = await response.json().catch(() => null);
+              throw new Error(detail?.detail || `Request failed (${response.status})`);
+            }
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            const readEvent = frame => {
+              let eventType = 'message';
+              const data = [];
+              for (const line of frame.split(/\r?\n/)) {
+                if (line.startsWith('event:')) eventType = line.slice(6).trim();
+                else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
+              }
+              if (!data.length) return;
+              const payload = JSON.parse(data.join('\n'));
+              if (eventType === 'error') throw new Error(payload.message || 'Ollama stream failed');
+              if (eventType === 'token') {
+                answer += payload;
+                job.reply.textContent = answer;
+                chat.scrollTop = chat.scrollHeight;
+              }
+            };
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              const frames = buffer.split(/\r?\n\r?\n/);
+              buffer = frames.pop();
+              for (const frame of frames) readEvent(frame);
+            }
+            buffer += decoder.decode();
+            if (buffer.trim()) readEvent(buffer);
+            job.reply.textContent = answer || 'Ollama finished without sending answer text.';
+            if (answer) messages.push({ role: 'assistant', content: answer });
+            else messages.pop();
+          } catch (error) {
+            messages.pop();
+            if (error.name === 'AbortError') {
+              job.reply.textContent = answer ? `${answer}\n\nStopped.` : 'Stopped.';
+            } else {
+              job.reply.classList.add('error');
+              job.reply.textContent = `Error: ${error.message}`;
+              console.error('Ollama request failed', error);
+            }
+          } finally {
+            if (id !== conversationId) return;
+            controller = null;
+            updateQueueStatus();
+          }
+        }
+      } finally {
+        if (id === conversationId) {
+          processing = false;
+          controller = null;
+          updateQueueStatus();
+          if (queue.length) processQueue(id);
+        }
+      }
+    }
+
+    stopButton.addEventListener('click', () => controller?.abort());
+
+    function resizeInput() {
+      input.style.height = 'auto';
+      input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
+    }
+
+    document.querySelector('#form').addEventListener('submit', submit);
+    input.addEventListener('input', resizeInput);
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) submit(event);
+    });
+    document.querySelector('#new-chat').addEventListener('click', () => {
+      conversationId += 1;
+      controller?.abort();
+      controller = null;
+      processing = false;
+      queue.length = 0;
+      messages.length = 0;
+      conversation.replaceChildren();
+      const welcome = document.createElement('div');
+      welcome.className = 'welcome';
+      welcome.id = 'welcome';
+      const content = document.createElement('div');
+      const heading = document.createElement('h1');
+      heading.textContent = 'What can I help with?';
+      const subtitle = document.createElement('p');
+      subtitle.textContent = 'Choose a model and start a conversation.';
+      content.append(heading, subtitle);
+      welcome.append(content);
+      conversation.append(welcome);
+      input.value = '';
+      resizeInput();
+      updateQueueStatus();
+      input.focus();
+    });
+    modelSelect.addEventListener('change', updateModelName);
+    loadModels();
+  </script>
+</body>
+</html>
