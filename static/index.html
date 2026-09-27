@@ -35,14 +35,24 @@
     .turn .message.assistant { margin-bottom:0; }
     .message.pending { color:var(--muted); }
     .message.user { width:fit-content; max-width:86%; margin-left:auto; padding:10px 14px; background:#292c26; border:1px solid #343730; border-radius:12px 12px 3px 12px; }
+    .user-images { display:flex; flex-wrap:wrap; gap:7px; justify-content:flex-end; margin:0 0 9px; }
+    .user-images img { width:112px; height:88px; object-fit:cover; border-radius:5px; border:1px solid var(--line); }
     .message.assistant { padding:3px 1px; }
     .message.error { color:#f0a09a; }
     .composer-wrap { padding:12px 22px 20px; }
     .composer { width:min(760px,100%); margin:auto; border:1px solid #41443c; border-radius:9px; background:var(--panel); box-shadow:0 8px 28px #0002; }
     textarea { display:block; width:100%; min-height:54px; max-height:180px; padding:15px 15px 6px; resize:none; border:0; outline:0; color:var(--text); background:transparent; }
     textarea::placeholder { color:#858980; }
+    .attachments { display:none; flex-wrap:wrap; gap:8px; padding:0 12px 9px; }
+    .attachments:not(:empty) { display:flex; }
+    .attachment { position:relative; width:62px; height:62px; }
+    .attachment img { width:100%; height:100%; object-fit:cover; border-radius:5px; border:1px solid var(--line); }
+    .attachment button { position:absolute; top:-6px; right:-6px; width:21px; height:21px; border:1px solid var(--line); border-radius:50%; background:#181a16; font-size:14px; line-height:1; }
     .composer-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:5px 8px 8px 13px; color:var(--muted); font-size:12px; }
     .action-group { display:flex; align-items:center; gap:6px; }
+    .attach { width:34px; height:34px; display:grid; place-items:center; border:1px solid transparent; border-radius:6px; background:transparent; color:var(--muted); }
+    .attach:hover { background:#292c26; color:var(--text); }
+    .attach svg { width:18px; height:18px; }
     .send { width:34px; height:34px; display:grid; place-items:center; border:0; border-radius:6px; background:var(--accent); color:#202417; }
     .stop { width:34px; height:34px; display:none; place-items:center; border:1px solid var(--line); border-radius:6px; background:transparent; }
     .stop.visible { display:grid; }
@@ -62,7 +72,7 @@
     <main>
       <header class="topbar"><span id="model-name">Local chat</span><span>Private · runs locally</span></header>
       <section id="chat" aria-live="polite"><div class="conversation" id="conversation"><div class="welcome" id="welcome"><div><h1>What can I help with?</h1><p>Choose a model and start a conversation.</p></div></div></div></section>
-      <div class="composer-wrap"><form class="composer" id="form"><textarea id="message" rows="1" placeholder="Message your model…" aria-label="Message"></textarea><div class="composer-actions"><span id="queue-status">Enter to send · Shift+Enter for a new line</span><div class="action-group"><button class="stop" id="stop" type="button" aria-label="Stop current reply" title="Stop current reply"><span aria-hidden="true">■</span></button><button class="send" id="send" type="submit" aria-label="Send message" title="Send message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div></form></div>
+      <div class="composer-wrap"><form class="composer" id="form"><textarea id="message" rows="1" placeholder="Message your model…" aria-label="Message"></textarea><div class="attachments" id="attachments"></div><div class="composer-actions"><span id="queue-status">Enter to send · Shift+Enter for a new line</span><div class="action-group"><input id="image-input" type="file" accept="image/*" multiple hidden><button class="stop" id="stop" type="button" aria-label="Stop current reply" title="Stop current reply"><span aria-hidden="true">■</span></button><button class="attach" id="attach" type="button" aria-label="Attach images" title="Attach images"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.4 11.1-8.5 8.5a5.7 5.7 0 0 1-8.1-8.1l9.2-9.2a3.8 3.8 0 0 1 5.4 5.4l-9.2 9.2a1.9 1.9 0 0 1-2.7-2.7l8.5-8.5"/></svg></button><button class="send" id="send" type="submit" aria-label="Send message" title="Send message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div></form></div>
     </main>
   </div>
   <script>
@@ -71,10 +81,13 @@
     const chat = document.querySelector('#chat');
     const input = document.querySelector('#message');
     const sendButton = document.querySelector('#send');
+    const imageInput = document.querySelector('#image-input');
+    const attachmentList = document.querySelector('#attachments');
     const stopButton = document.querySelector('#stop');
     const queueStatus = document.querySelector('#queue-status');
     const messages = [];
     const queue = [];
+    const pendingImages = [];
     let controller = null;
     let processing = false;
     let conversationId = 0;
@@ -106,13 +119,24 @@
       document.querySelector('#model-name').textContent = modelSelect.value || 'Local chat';
     }
 
-    function addTurn(content) {
+    function addTurn(content, images) {
       document.querySelector('#welcome')?.remove();
       const turn = document.createElement('div');
       turn.className = 'turn';
       const user = document.createElement('div');
       user.className = 'message user';
       user.textContent = content;
+      if (images.length) {
+        const previews = document.createElement('div');
+        previews.className = 'user-images';
+        for (const image of images) {
+          const preview = document.createElement('img');
+          preview.src = image.preview;
+          preview.alt = image.name;
+          previews.append(preview);
+        }
+        turn.append(previews);
+      }
       const reply = document.createElement('div');
       reply.className = 'message assistant pending';
       reply.textContent = 'Waiting in queue…';
@@ -130,12 +154,15 @@
 
     async function submit(event) {
       event?.preventDefault();
-      const content = input.value.trim();
+      const content = input.value.trim() || (pendingImages.length > 1 ? 'Describe these images.' : pendingImages.length ? 'Describe this image.' : '');
       const model = modelSelect.value;
       if (!content || !model) return;
+      const images = pendingImages.splice(0);
+      renderPendingImages();
       input.value = '';
       resizeInput();
-      queue.push({ content, model, reply: addTurn(content) });
+      imageInput.value = '';
+      queue.push({ content, model, images, reply: addTurn(content, images) });
       updateQueueStatus();
       if (!processing) processQueue(conversationId);
     }
@@ -149,7 +176,9 @@
           const job = queue.shift();
           job.reply.classList.remove('pending');
           job.reply.textContent = 'Waiting for Ollama…';
-          messages.push({ role: 'user', content: job.content });
+          const userMessage = { role: 'user', content: job.content };
+          if (job.images.length) userMessage.images = job.images.map(image => image.base64);
+          messages.push(userMessage);
           controller = new AbortController();
           updateQueueStatus();
           let answer = '';
@@ -223,6 +252,73 @@
 
     stopButton.addEventListener('click', () => controller?.abort());
 
+    function renderPendingImages() {
+      attachmentList.replaceChildren();
+      pendingImages.forEach((image, index) => {
+        const item = document.createElement('div');
+        item.className = 'attachment';
+        const preview = document.createElement('img');
+        preview.src = image.preview;
+        preview.alt = image.name;
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.textContent = '×';
+        remove.setAttribute('aria-label', `Remove ${image.name}`);
+        remove.addEventListener('click', () => {
+          pendingImages.splice(index, 1);
+          renderPendingImages();
+        });
+        item.append(preview, remove);
+        attachmentList.append(item);
+      });
+    }
+
+    function readImage(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const preview = reader.result;
+          resolve({
+            name: file.name,
+            preview,
+            base64: preview.slice(preview.indexOf(',') + 1),
+          });
+        };
+        reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    document.querySelector('#attach').addEventListener('click', () => imageInput.click());
+    imageInput.addEventListener('change', async () => {
+      const files = [...imageInput.files];
+      const room = 4 - pendingImages.length;
+      if (room <= 0) {
+        queueStatus.textContent = 'Attach up to 4 images per message';
+        imageInput.value = '';
+        return;
+      }
+      if (files.length > room) {
+        queueStatus.textContent = 'Attach up to 4 images per message';
+        files.splice(room);
+      }
+      const accepted = files.filter(file => file.type.startsWith('image/'));
+      const tooLarge = accepted.find(file => file.size > 10 * 1024 * 1024);
+      if (tooLarge) {
+        queueStatus.textContent = `${tooLarge.name} is over the 10 MB image limit`;
+        imageInput.value = '';
+        return;
+      }
+      try {
+        pendingImages.push(...await Promise.all(accepted.map(readImage)));
+        renderPendingImages();
+        queueStatus.textContent = 'Enter to send · Shift+Enter for a new line';
+      } catch (error) {
+        queueStatus.textContent = error.message;
+      }
+      imageInput.value = '';
+    });
+
     function resizeInput() {
       input.style.height = 'auto';
       input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
@@ -240,6 +336,8 @@
       processing = false;
       queue.length = 0;
       messages.length = 0;
+      pendingImages.length = 0;
+      renderPendingImages();
       conversation.replaceChildren();
       const welcome = document.createElement('div');
       welcome.className = 'welcome';

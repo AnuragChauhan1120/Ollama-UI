@@ -13,6 +13,7 @@ The goal is to provide a simple alternative to heavier Ollama web interfaces whi
 * 🧠 **Model selection** — automatically loads models installed in Ollama
 * ⚡ **Streaming responses** — responses appear as they are generated
 * 💬 **Conversation history** — maintains context throughout a chat
+* 🖼️ **Image input** — attach up to four local images to a message
 * 🛑 **Stop generation** — cancel an ongoing response
 * 📋 **Message queue** — multiple submitted messages are processed sequentially
 * 🆕 **New chat** — clear the current conversation and start fresh
@@ -117,6 +118,8 @@ ollama pull qwen3.5:4b
 
 You can use any model supported by your Ollama installation.
 
+For image descriptions, choose a vision-capable model. In the Gemma 3 family, `gemma3:4b` and larger support images; `gemma3:270m` and `gemma3:1b` are text-only.
+
 ---
 
 ## Run the Application
@@ -192,11 +195,14 @@ with:
   "messages": [
     {
       "role": "user",
-      "content": "Hello"
+      "content": "What is in this picture?",
+      "images": ["base64-encoded-image"]
     }
   ]
 }
 ```
+
+Use the paperclip button in the composer to select images. The browser only sends files you explicitly attach, encoded in the user message for Ollama's vision API.
 
 FastAPI forwards the request to:
 
