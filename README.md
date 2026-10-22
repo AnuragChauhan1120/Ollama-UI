@@ -1,31 +1,37 @@
 # Lightweight Ollama Web UI
 
-A minimal, fast, locally hosted web UI for [Ollama](https://ollama.com/) models.
+A minimal, local-first web UI for [Ollama](https://ollama.com/) models. A small FastAPI backend talks directly to your local Ollama instance and streams responses to a plain HTML/CSS/JavaScript frontend.
 
-The application uses **FastAPI** as a lightweight backend and communicates directly with a locally running Ollama instance. It supports model selection, streaming responses, conversation history, queued messages, stopping generation, and starting new chats.
+It supports model selection, streaming responses, conversation history, image input, queued messages, stopping generation, and starting new chats.
 
-The goal is to provide a simple alternative to heavier Ollama web interfaces while keeping the experience close to using Ollama directly from the terminal.
+<!-- Add a screenshot or GIF here: ![Ollama UI](docs/screenshot.png) -->
+
+## Why this exists
+
+I built this because heavier Ollama web interfaces felt slow for everyday use. The goal is a simple interface that stays close to using Ollama from the terminal: no framework, no build step, no extra services.
+
+It is intentionally **not deployed**. The app has to talk to an Ollama instance running on your own machine, so hosting it in the cloud would only add a network hop and send your prompts off-device. Keeping everything local is the point.
 
 ---
 
 ## Features
 
-* 🧠 **Model selection** — automatically loads models installed in Ollama
-* ⚡ **Streaming responses** — responses appear as they are generated
-* 💬 **Conversation history** — maintains context throughout a chat
-* 🖼️ **Image input** — attach up to four local images to a message
-* 🛑 **Stop generation** — cancel an ongoing response
-* 📋 **Message queue** — multiple submitted messages are processed sequentially
-* 🆕 **New chat** — clear the current conversation and start fresh
-* 🔌 **Persistent HTTP connection** — reuses an `httpx.AsyncClient`
-* 🔒 **Runs locally** — your prompts and model inference stay on your machine
-* 🪶 **Lightweight** — FastAPI + vanilla HTML/CSS/JavaScript
+- **Model selection**: automatically lists the models installed in Ollama
+- **Streaming responses**: tokens appear as they are generated
+- **Conversation history**: context is kept throughout a chat
+- **Image input**: attach up to four local images to a message (vision-capable models only)
+- **Stop generation**: cancel an ongoing response
+- **Message queue**: multiple submitted messages are processed one at a time
+- **New chat**: clear the conversation and start fresh
+- **Persistent HTTP connection**: reuses a single `httpx.AsyncClient`
+- **Runs locally**: prompts and inference stay on your machine
+- **Lightweight**: FastAPI + vanilla HTML/CSS/JavaScript
 
 ---
 
 ## Architecture
 
-```text
+```
 ┌─────────────────────────┐
 │       Web Browser       │
 │                         │
@@ -40,12 +46,12 @@ The goal is to provide a simple alternative to heavier Ollama web interfaces whi
 ┌─────────────────────────┐
 │         FastAPI         │
 │                         │
-│  /                     │
-│  /models               │
-│  /chat                 │
+│  GET  /                 │
+│  GET  /models           │
+│  POST /chat             │
 │                         │
 │  Persistent HTTPX       │
-│  Client                │
+│  Client                 │
 └────────────┬────────────┘
              │
              │ HTTP Streaming
@@ -54,59 +60,33 @@ The goal is to provide a simple alternative to heavier Ollama web interfaces whi
 │         Ollama          │
 │    localhost:11434      │
 │                         │
-│  Qwen / Gemma / Llama  │
-│  etc.                  │
+│  Qwen / Gemma / Llama   │
+│  etc.                   │
 └─────────────────────────┘
 ```
 
 ---
 
-## Requirements
+## Quick start
 
-* Python 3.10+
-* [Ollama](https://ollama.com/)
-* A locally installed Ollama model
+### Requirements
 
----
+- Python 3.10+
+- [Ollama](https://ollama.com/) installed and running
+- At least one locally installed Ollama model
 
-## Installation
-
-### 1. Clone the repository
+### 1. Clone and install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
-cd YOUR_REPOSITORY
-```
-
-### 2. Install Python dependencies
-
-```bash
-pip install fastapi uvicorn httpx
-```
-
-Or, if a `requirements.txt` file is provided:
-
-```bash
+git clone https://github.com/AnuragChauhan1120/Ollama-UI.git
+cd Ollama-UI
 pip install -r requirements.txt
 ```
 
----
-
-## Install Ollama
-
-Install Ollama from:
-
-https://ollama.com/
-
-Verify the installation:
+### 2. Make sure Ollama has a model
 
 ```bash
 ollama --version
-```
-
-Check your installed models:
-
-```bash
 ollama list
 ```
 
@@ -116,78 +96,48 @@ If you don't have a model yet, pull one:
 ollama pull qwen3.5:4b
 ```
 
-You can use any model supported by your Ollama installation.
+Any model supported by your Ollama installation works. For image input, pick a vision-capable model. In the Gemma 3 family, `gemma3:4b` and larger support images; `gemma3:270m` and `gemma3:1b` are text-only.
 
-For image descriptions, choose a vision-capable model. In the Gemma 3 family, `gemma3:4b` and larger support images; `gemma3:270m` and `gemma3:1b` are text-only.
+### 3. Run
 
----
-
-## Run the Application
-
-Start Ollama:
+Start Ollama (skip this if it is already running):
 
 ```bash
 ollama serve
 ```
 
-Then, from the project directory, start FastAPI:
+Then, from the project directory:
 
 ```bash
 uvicorn main:app --reload
 ```
 
-Open the UI in your browser:
-
-```text
-http://127.0.0.1:8000
-```
+Open <http://127.0.0.1:8000> in your browser.
 
 ---
 
-## Project Structure
+## Project structure
 
-```text
-ollama-ui/
-│
-├── main.py
-│
+```
+Ollama-UI/
+├── main.py              # FastAPI backend
+├── requirements.txt
 ├── static/
-│   └── index.html
-│
+│   └── index.html       # Frontend (HTML, CSS, JavaScript)
 └── README.md
 ```
 
 ---
 
-## How It Works
+## How it works
 
-### Model Discovery
+### Model discovery
 
-The frontend requests:
-
-```text
-GET /models
-```
-
-FastAPI forwards this to Ollama:
-
-```text
-GET http://127.0.0.1:11434/api/tags
-```
-
-The returned models are displayed in the model selector.
-
----
+The frontend requests `GET /models`. FastAPI forwards this to Ollama's `GET http://127.0.0.1:11434/api/tags`, and the returned models populate the model selector.
 
 ### Chat
 
-The frontend sends:
-
-```text
-POST /chat
-```
-
-with:
+The frontend sends `POST /chat`:
 
 ```json
 {
@@ -202,15 +152,9 @@ with:
 }
 ```
 
-Use the paperclip button in the composer to select images. The browser only sends files you explicitly attach, encoded in the user message for Ollama's vision API.
+Use the paperclip button in the composer to attach images. Only files you explicitly attach are sent, base64-encoded in the user message for Ollama's vision API.
 
-FastAPI forwards the request to:
-
-```text
-http://127.0.0.1:11434/api/chat
-```
-
-with streaming enabled:
+FastAPI forwards the request to `http://127.0.0.1:11434/api/chat` with streaming enabled:
 
 ```json
 {
@@ -221,32 +165,11 @@ with streaming enabled:
 }
 ```
 
----
+### Streaming
 
-## Streaming
+Instead of waiting for the full response, the backend relays Ollama's streamed output as SSE-style events:
 
-Instead of waiting for the complete response, Ollama streams generated content.
-
-```text
-Ollama
-   │
-   ├── token
-   ├── token
-   ├── token
-   ├── token
-   ▼
-FastAPI
-   │
-   ▼
-Browser
-   │
-   ▼
-Visible response
 ```
-
-FastAPI converts the streamed response into SSE-style events:
-
-```text
 event: token
 data: "Hello"
 
@@ -259,180 +182,56 @@ data: {}
 
 The frontend reads these events and updates the assistant message incrementally.
 
----
+### Message queue
 
-## Message Queue
+The frontend keeps a queue of submitted messages and processes them sequentially rather than starting several generations at once. This avoids multiple local generations competing for the same GPU.
 
-The frontend maintains a queue for submitted messages.
+### Stopping generation
 
-For example:
+Each active request uses an `AbortController`. Pressing **Stop** aborts the current request in the browser.
 
-```text
-Question 1
-Question 2
-Question 3
-```
+### New chat
 
-becomes:
+The **New Chat** button stops the current generation, clears queued messages and conversation history, and resets the interface.
 
-```text
-Queue
- ├── Question 1
- ├── Question 2
- └── Question 3
-```
+### Conversation context
 
-They are processed sequentially rather than starting multiple generations simultaneously.
-
-This helps avoid multiple local model generations competing for GPU resources.
+Conversation history is maintained by the frontend as a list of messages (`role` and `content`) and sent to Ollama with each request so the model keeps context.
 
 ---
 
-## Stopping Generation
+## Design decisions
 
-Each active request uses an `AbortController`.
-
-When **Stop** is pressed, the current request is aborted.
-
-```text
-Browser
-   │
-   │ generation request
-   ▼
-FastAPI → Ollama
-   │
-   │
-   └── Stop → AbortController
-```
-
----
-
-## Starting a New Chat
-
-The **New Chat** button:
-
-* Stops the current generation
-* Clears queued messages
-* Clears conversation history
-* Resets the interface
-* Starts a new conversation
-
----
-
-## Conversation Context
-
-Conversation history is maintained by the frontend.
-
-Messages are stored as:
-
-```javascript
-[
-    {
-        role: "user",
-        content: "Hello"
-    },
-    {
-        role: "assistant",
-        content: "Hi!"
-    }
-]
-```
-
-This history is sent to Ollama with subsequent requests so the model can maintain conversational context.
-
----
-
-## Performance
-
-The application is intentionally lightweight.
-
-The backend uses a persistent `httpx.AsyncClient` with connection pooling rather than creating a new HTTP client for every request.
-
-The Ollama response is streamed directly through FastAPI rather than waiting for the entire response.
-
-The application also avoids unnecessary frontend frameworks and uses plain HTML, CSS, and JavaScript.
+- **Local-first, not deployed.** The backend must reach Ollama on the same machine, so deployment would add latency and move prompts off-device without any benefit.
+- **Vanilla frontend.** No framework or build step keeps startup instant and the code easy to read.
+- **One pooled HTTP client.** A persistent `httpx.AsyncClient` with connection pooling avoids creating a new client per request.
+- **Stream straight through.** Ollama's output is relayed to the browser as it arrives instead of being buffered.
+- **Sequential queue.** One generation at a time is the right default for a single local GPU.
 
 ---
 
 ## Privacy
 
-This application is designed to run locally.
-
-```text
-Browser
-   ↓
-Your FastAPI server
-   ↓
-Your local Ollama
-   ↓
-Your local model
+```
+Browser → your FastAPI server → your local Ollama → your local model
 ```
 
-No external LLM API is required.
-
-Your prompts and model responses remain on your machine unless you deliberately expose the application or connect it to an external service.
+No external LLM API is required. Prompts and responses stay on your machine unless you deliberately expose the app or connect it to an external service.
 
 ---
 
 ## Troubleshooting
 
-### Ollama is not running
+**Ollama is not running.** Start it with `ollama serve`, then check with `ollama list`.
 
-Start Ollama:
+**No models appear.** Run `ollama list`. If it is empty, pull a model (for example `ollama pull qwen3.5:4b`) and refresh the page.
 
-```bash
-ollama serve
-```
+**FastAPI cannot connect to Ollama.** The app expects Ollama at `http://127.0.0.1:11434`. Make sure it is running on the same machine.
 
-Verify:
-
-```bash
-ollama list
-```
-
----
-
-### No models appear
-
-Check:
-
-```bash
-ollama list
-```
-
-If no models are installed:
-
-```bash
-ollama pull qwen3.5:4b
-```
-
-Then refresh the UI.
-
----
-
-### FastAPI cannot connect to Ollama
-
-The application expects Ollama at:
-
-```text
-http://127.0.0.1:11434
-```
-
-Make sure Ollama is running on the same machine.
-
----
-
-### Response is slow
-
-Generation speed primarily depends on the selected model, quantization, available GPU/VRAM, context length, and Ollama configuration.
-
-Try a smaller model if your hardware struggles with larger models.
-
+**Responses are slow.** Speed depends mainly on the model, quantization, available GPU/VRAM, and context length. Try a smaller model if your hardware struggles.
 
 ---
 
 ## Contributing
 
-Contributions, improvements, bug fixes, and UI enhancements are welcome.
-
-Fork the repository, make your changes, and open a pull request.
+Bug fixes, improvements, and UI enhancements are welcome. Fork the repository, make your changes, and open a pull request.
